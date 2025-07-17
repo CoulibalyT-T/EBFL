@@ -3,31 +3,35 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Spin & Collect</title>
+<title>SWERTE KA BOI</title>
 <style>
-    body { font-family: sans-serif; text-align: center; background: #111; color: #fff; }
-    #wheelContainer { position: relative; width: 300px; height: 300px; margin: 20px auto; }
-    #wheel { width: 100%; height: 100%; border-radius: 50%; border: 10px solid #555; background: conic-gradient(#ff0000 0deg 60deg, #00ff00 60deg 120deg, #0000ff 120deg 180deg, #ffff00 180deg 240deg, #00ffff 240deg 300deg, #ff00ff 300deg 360deg); transition: transform 4s cubic-bezier(0.33, 1, 0.68, 1); }
-    #pointer { position: absolute; top: 0; left: 50%; width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-bottom: 30px solid white; transform: translateX(-50%); }
-    button { padding: 10px 20px; font-size: 18px; cursor: pointer; }
+    body { font-family: sans-serif; text-align: center; background: #0d0d0d; color: #fff; }
+    h1 { margin-top: 20px; color: #e63946; }
+    #cardContainer { display: flex; justify-content: center; align-items: center; height: 200px; overflow: hidden; margin: 20px auto; width: 300px; position: relative; }
+    .card { width: 80px; height: 120px; background: #333; border: 2px solid #555; border-radius: 8px; margin: 0 5px; display: flex; justify-content: center; align-items: center; font-size: 12px; transition: transform 0.3s, background 0.3s; }
+    .reveal { background: #e63946; transform: scale(1.1); color: #fff; }
+    button { padding: 10px 20px; font-size: 16px; cursor: pointer; background: #e63946; color: #fff; border: none; border-radius: 5px; margin-top: 10px; }
+    button:disabled { background: #555; cursor: not-allowed; }
     #collection { margin-top: 20px; }
+    ul { list-style: none; padding: 0; }
+    li { margin: 5px 0; }
 </style>
 </head>
 <body>
-    <h1>Spin & Collect Cards</h1>
-    <div id="wheelContainer">
-        <div id="pointer"></div>
-        <div id="wheel"></div>
-    </div>
+    <h1>SANA PUMALDO</h1>
+    <div id="cardContainer"></div>
     <button id="spinButton">SPIN</button>
     <div id="result"></div>
-    <div id="collection"><h2>Your Collection</h2><ul id="collectionList"></ul></div>
+    <div id="collection">
+        <h2>Nakuwa ni aeyel bulbol</h2>
+        <ul id="collectionList"></ul>
+    </div>
 
 <script>
 const prizes = [
     "💰 EP",
     "💎 EC",
-    "🪙 Discord Coin",
+    "💰 Discord Coin",
     "🥉 Bronze Badge Card",
     "🥈 Silver Badge Card",
     "🥇 Gold Badge Card",
@@ -44,33 +48,58 @@ const prizes = [
     "💥 Dunk Package",
     "🩰 Layup Package"
 ];
-const wheel = document.getElementById('wheel');
-const result = document.getElementById('result');
+
+const cardContainer = document.getElementById('cardContainer');
 const spinButton = document.getElementById('spinButton');
+const result = document.getElementById('result');
 const collectionList = document.getElementById('collectionList');
 
 let collection = JSON.parse(localStorage.getItem('collection')) || [];
 updateCollectionUI();
 
+function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+}
+
 spinButton.addEventListener('click', () => {
     spinButton.disabled = true;
     result.textContent = '';
+    cardContainer.innerHTML = '';
 
-    const spins = 5; // rounds before stopping
-    const prizeIndex = Math.floor(Math.random() * prizes.length);
-    const segmentAngle = 360 / prizes.length;
-    const stopAngle = (360 - (prizeIndex * segmentAngle) - (segmentAngle / 2)) + (spins * 360);
+    const shuffled = [...prizes];
+    shuffleArray(shuffled);
 
-    wheel.style.transform = `rotate(${stopAngle}deg)`;
+    shuffled.slice(0, 5).forEach(prize => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.textContent = "🎴";
+        cardContainer.appendChild(card);
+    });
+
+    let revealIndex = Math.floor(Math.random() * 5);
+    let revealPrize = shuffled[revealIndex];
 
     setTimeout(() => {
-        const prize = prizes[prizeIndex];
-        result.textContent = `You won: ${prize}`;
-        collection.push(prize);
-        localStorage.setItem('collection', JSON.stringify(collection));
-        updateCollectionUI();
-        spinButton.disabled = false;
-    }, 4000); // match wheel transition duration
+        const cards = document.querySelectorAll('.card');
+        cards.forEach((card, idx) => {
+            setTimeout(() => {
+                if(idx === revealIndex){
+                    card.textContent = revealPrize;
+                    card.classList.add('reveal');
+                    result.textContent = `You won: ${revealPrize}`;
+                    collection.push(revealPrize);
+                    localStorage.setItem('collection', JSON.stringify(collection));
+                    updateCollectionUI();
+                    spinButton.disabled = false;
+                } else {
+                    card.style.opacity = '0.2';
+                }
+            }, idx * 300);
+        });
+    }, 500);
 });
 
 function updateCollectionUI() {
