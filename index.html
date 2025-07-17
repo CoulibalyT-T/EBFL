@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>SWERTE KA BOI</title>
+<title>EBFL Card Shuffle</title>
 <style>
     body { font-family: sans-serif; text-align: center; background: #0d0d0d; color: #fff; }
     h1 { margin-top: 20px; color: #e63946; }
@@ -20,33 +20,21 @@
 <body>
     <h1>SANA PUMALDO</h1>
     <div id="cardContainer"></div>
-    <button id="spinButton">SPIN</button>
+    <button id="spinButton">DUTDOT</button>
     <div id="result"></div>
     <div id="collection">
-        <h2>Nakuwa ni aeyel bulbol</h2>
+        <h2>Nakuwa mong bulbol ka</h2>
         <ul id="collectionList"></ul>
     </div>
 
 <script>
 const prizes = [
-    "💰 EP",
-    "💎 EC",
-    "💰 Discord Coin",
-    "🥉 Bronze Badge Card",
-    "🥈 Silver Badge Card",
-    "🥇 Gold Badge Card",
-    "🏆 HoF Badge Card",
-    "🔧 Upgrade Badge",
-    "⚡ Basic Attribute",
-    "⚡ Standard Attribute",
-    "⚡ Premium Attribute",
-    "⬆️ Increase Attribute Limit",
-    "🟡 Hotzone Neutral",
-    "🔵 Hotzone Cold",
-    "🔴 Hotzone Hot",
-    "❄️ Cold Zone Removal",
-    "💥 Dunk Package",
-    "🩰 Layup Package"
+    "💰 EP", "💎 EC", "💰 Discord Coin", "🥉 Bronze Badge Card",
+    "🥈 Silver Badge Card", "🥇 Gold Badge Card", "🏆 HoF Badge Card",
+    "🔧 Upgrade Badge", "⚡ Basic Attribute", "⚡ Standard Attribute",
+    "⚡ Premium Attribute", "⬆️ Increase Attribute Limit",
+    "🟡 Hotzone Neutral", "🔵 Hotzone Cold", "🔴 Hotzone Hot",
+    "❄️ Cold Zone Removal", "💥 Dunk Package", "🩰 Layup Package"
 ];
 
 const cardContainer = document.getElementById('cardContainer');
@@ -72,20 +60,30 @@ spinButton.addEventListener('click', () => {
     const shuffled = [...prizes];
     shuffleArray(shuffled);
 
-    shuffled.slice(0, 5).forEach(prize => {
+    // Create 5 cards with initial "🎴"
+    const cards = [];
+    for (let i = 0; i < 5; i++) {
         const card = document.createElement('div');
         card.className = 'card';
         card.textContent = "🎴";
         cardContainer.appendChild(card);
-    });
+        cards.push(card);
+    }
 
-    let revealIndex = Math.floor(Math.random() * 5);
-    let revealPrize = shuffled[revealIndex];
+    // Animate shuffle every 300ms for 10 seconds (33 iterations)
+    let count = 0;
+    const shuffleInterval = setInterval(() => {
+        cards.forEach(card => {
+            card.style.transform = `rotate(${Math.random() * 20 - 10}deg) translateY(${Math.random() * 10 - 5}px)`;
+        });
+        count++;
+        if (count >= 33) { // ~10 seconds
+            clearInterval(shuffleInterval);
 
-    setTimeout(() => {
-        const cards = document.querySelectorAll('.card');
-        cards.forEach((card, idx) => {
-            setTimeout(() => {
+            // Reveal after shuffle
+            let revealIndex = Math.floor(Math.random() * 5);
+            let revealPrize = shuffled[Math.floor(Math.random() * shuffled.length)];
+            cards.forEach((card, idx) => {
                 if(idx === revealIndex){
                     card.textContent = revealPrize;
                     card.classList.add('reveal');
@@ -93,13 +91,14 @@ spinButton.addEventListener('click', () => {
                     collection.push(revealPrize);
                     localStorage.setItem('collection', JSON.stringify(collection));
                     updateCollectionUI();
-                    spinButton.disabled = false;
                 } else {
                     card.style.opacity = '0.2';
                 }
-            }, idx * 300);
-        });
-    }, 500);
+                card.style.transform = "rotate(0deg) translateY(0)";
+            });
+            spinButton.disabled = false;
+        }
+    }, 300);
 });
 
 function updateCollectionUI() {
