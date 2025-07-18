@@ -7,24 +7,38 @@
     <style>
         body { font-family: sans-serif; background: #0d0d0d; color: #fff; text-align: center; }
         button { padding: 12px 20px; font-size: 18px; cursor: pointer; margin: 10px; border-radius: 8px; border: none; }
-        #login, #spinButton { background: #e63946; color: #fff; transition: background 0.3s; }
-        #login:hover, #spinButton:hover { background: #f77f00; }
+        #login, #spinButton, #joinDiscord { background: #e63946; color: #fff; transition: background 0.3s; }
+        #login:hover, #spinButton:hover, #joinDiscord:hover { background: #f77f00; }
         #result { font-size: 20px; margin-top: 20px; }
         #username { margin-top: 10px; font-weight: bold; }
-        #cards { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
-        .card { background: #1a1a1a; padding: 20px; border-radius: 10px; font-size: 18px; width: 120px; transition: transform 0.2s; }
+        #cards { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 20px; max-width: 500px; margin-left: auto; margin-right: auto; }
+        .card { background: #1a1a1a; padding: 20px; border-radius: 10px; font-size: 16px; width: 120px; transition: transform 0.2s, background 0.2s; }
         .card.active { background: #e63946; transform: scale(1.1); }
     </style>
 </head>
 <body>
     <h1>EBFL GM Spin</h1>
+
+    <!-- ✅ Join Discord Button -->
+    <a href="https://discord.gg/qBUx3y8v8u" target="_blank">
+        <button id="joinDiscord">Join EBFL Discord Server</button>
+    </a>
+
     <div id="username"></div>
+
+    <!-- ✅ Login Button -->
     <button id="login">Login with Discord</button>
+
+    <!-- ✅ Card Container -->
     <div id="cards"></div>
+
+    <!-- ✅ Spin Button (hidden until logged in) -->
     <button id="spinButton" style="display:none;">SPIN</button>
+
     <div id="result"></div>
 
-    <audio id="spinSound" src="https://freesound.org/data/previews/256/256113_3263906-lq.mp3"></audio>
+    <!-- ✅ Sound Effect -->
+    <audio id="spinSound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_5a379eff49.mp3?filename=slot-machine-spin-102851.mp3"></audio>
 
     <script>
         const backendUrl = "https://ebfl-oauth-backend-production.up.railway.app";
@@ -42,6 +56,7 @@
         const usernameDiv = document.getElementById('username');
         const spinSound = document.getElementById('spinSound');
 
+        // ✅ Create prize cards
         prizes.forEach(prize => {
             const div = document.createElement('div');
             div.className = 'card';
@@ -49,45 +64,69 @@
             cardsContainer.appendChild(div);
         });
 
+        // ✅ Login with Discord OAuth
         loginButton.addEventListener('click', () => {
             window.location.href = backendUrl + '/auth/discord';
         });
 
+        // ✅ Check authentication on page load
         async function checkAuth() {
-            const res = await fetch(backendUrl + '/auth/check', { credentials: 'include' });
-            if (res.ok) {
-                const data = await res.json();
-                usernameDiv.textContent = `Logged in as ${data.username}`;
-                loginButton.style.display = 'none';
-                spinButton.style.display = 'inline-block';
+            try {
+                const res = await fetch(backendUrl + '/auth/check', { credentials: 'include' });
+                if (res.ok) {
+                    const data = await res.json();
+                    usernameDiv.textContent = `✅ Logged in as ${data.username}`;
+                    loginButton.style.display = 'none';
+                    spinButton.style.display = 'inline-block';
+                } else {
+                    usernameDiv.textContent = "⚠️ Please login with Discord (GM role required).";
+                }
+            } catch (error) {
+                console.error(error);
+                usernameDiv.textContent = "Error checking authentication.";
             }
         }
 
+        // ✅ Spin functionality
         spinButton.addEventListener('click', async () => {
             spinButton.disabled = true;
             spinSound.play();
             resultDiv.textContent = '';
             const cards = document.querySelectorAll('.card');
             let activeIndex = 0;
+
+            // Shuffle animation for 10 seconds
             const interval = setInterval(() => {
                 cards.forEach(card => card.classList.remove('active'));
                 cards[activeIndex % cards.length].classList.add('active');
                 activeIndex++;
             }, 100);
 
+            // Fetch prize after 10 seconds
             setTimeout(async () => {
                 clearInterval(interval);
-                const response = await fetch(backendUrl + '/spin', { credentials: 'include' });
-                const data = await response.json();
-                resultDiv.textContent = `You won: ${data.prize}`;
-                cards.forEach(card => {
-                    card.classList.remove('active');
-                    if (card.textContent === data.prize) card.classList.add('active');
-                });
-                spinButton.disabled = false;
+                try {
+                    const response = await fetch(backendUrl + '/spin', { credentials: 'include' });
+                    const data = await response.json();
+                    resultDiv.textContent = `🎉 You won: ${data.prize}`;
+
+                    // Highlight the winning card
+                    cards.forEach(card => {
+                        card.classList.remove('active');
+                        if (card.textContent === data.prize) {
+                            card.classList.add('active');
+                        }
+                    });
+                } catch (error) {
+                    console.error(error);
+                    resultDiv.textContent = "Error spinning. Try again.";
+                } finally {
+                    spinButton.disabled = false;
+                }
             }, 10000);
         });
 
+        // Run on page load
         checkAuth();
     </script>
 </body>
