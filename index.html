@@ -1,161 +1,94 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>EBFL MY PLAYER UPGRADES</title>
-<style>
-    body { font-family: sans-serif; text-align: center; background: #0d0d0d; color: #fff; }
-    h1 { margin-top: 20px; color: #e63946; }
-    #cardContainer { display: flex; justify-content: center; align-items: center; height: 200px; overflow: hidden; margin: 20px auto; width: 100%; max-width: 400px; }
-    .card { width: 70px; height: 100px; background: #333; border: 3px solid #555; border-radius: 8px; margin: 0 5px; display: flex; justify-content: center; align-items: center; font-size: 11px; transition: transform 0.2s, border 0.2s, background 0.2s; }
-    .highlight { border: 3px solid #e63946; transform: scale(1.1); }
-    .reveal { transform: scale(1.2); color: #fff; }
-    .gold { border-color: gold !important; background: #c59d5f; }
-    .blue { border-color: #3498db !important; background: #2980b9; }
-    .red { border-color: #e74c3c !important; background: #c0392b; }
-    .grey { border-color: #bdc3c7 !important; background: #7f8c8d; }
-    button { padding: 10px 20px; font-size: 16px; cursor: pointer; background: #e63946; color: #fff; border: none; border-radius: 5px; margin-top: 10px; }
-    button:disabled { background: #555; cursor: not-allowed; }
-    #collection { margin-top: 20px; }
-    ul { list-style: none; padding: 0; }
-    li { margin: 5px 0; }
-</style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EBFL Spin</title>
+    <style>
+        body { font-family: sans-serif; background: #0d0d0d; color: #fff; text-align: center; }
+        button { padding: 12px 20px; font-size: 18px; cursor: pointer; margin: 10px; border-radius: 8px; border: none; }
+        #login, #spinButton { background: #e63946; color: #fff; transition: background 0.3s; }
+        #login:hover, #spinButton:hover { background: #f77f00; }
+        #result { font-size: 20px; margin-top: 20px; }
+        #username { margin-top: 10px; font-weight: bold; }
+        #cards { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+        .card { background: #1a1a1a; padding: 20px; border-radius: 10px; font-size: 18px; width: 120px; transition: transform 0.2s; }
+        .card.active { background: #e63946; transform: scale(1.1); }
+    </style>
 </head>
 <body>
-    <h1>EBFL Spin & Collect</h1>
-    <div id="cardContainer"></div>
-    <button id="spinButton">SPIN</button>
+    <h1>EBFL SPIN</h1>
+    <div id="username"></div>
+    <button id="login">Login with Discord</button>
+    <div id="cards"></div>
+    <button id="spinButton" style="display:none;">SPIN</button>
     <div id="result"></div>
-    <div id="collection">
-        <h2>Your Reward</h2>
-        <ul id="collectionList"></ul>
-    </div>
 
-<audio id="spinSound" loop>
-<source src="data:audio/mp3;base64,//uQx...your_spin_sound_base64..." type="audio/mp3">
-</audio>
-<audio id="revealSound">
-<source src="data:audio/mp3;base64,//uQx...your_reveal_sound_base64..." type="audio/mp3">
-</audio>
+    <audio id="spinSound" src="https://freesound.org/data/previews/256/256113_3263906-lq.mp3"></audio>
 
-<script>
-const prizes = [
-    "EP", "EC", "Discord Coin", "Bronze Badge Card",
-    "Silver Badge Card", "Gold Badge Card", "HoF Badge Card",
-    "Upgrade Badge", "Basic Attribute", "Standard Attribute",
-    "Premium Attribute", "Increase Attribute Limit",
-    "Hotzone Neutral", "Hotzone Cold", "Hotzone Hot",
-    "Cold Zone Removal", "Dunk Package", "Layup Package"
-];
+    <script>
+        const backendUrl = "https://ebfl-oauth-backend-production.up.railway.app";
+        const prizes = [
+            'EP', 'EC', 'Discord Coin', 'Badge Card (Bronze)', 'Badge Card (Silver)',
+            'Badge Card (Gold)', 'Badge Card (HoF)', 'Upgrade Badge', 'Attributes (Basic)',
+            'Attributes (Standard)', 'Attributes (Premium)', 'Increase Attribute Limits',
+            'Hotzone (Neutral)', 'Hotzone (Cold)', 'Hotzone (Hot)', 'Cold Zone Removal',
+            'Dunk Package', 'Layup Package'
+        ];
+        const cardsContainer = document.getElementById('cards');
+        const spinButton = document.getElementById('spinButton');
+        const loginButton = document.getElementById('login');
+        const resultDiv = document.getElementById('result');
+        const usernameDiv = document.getElementById('username');
+        const spinSound = document.getElementById('spinSound');
 
-const webhookURL = "https://discord.com/api/webhooks/1395556475484766208/rOtQgso-Tc-b-XHY1NlI8LuaPlk0iXtmpm9cqsAvv_ZQQIxw2r-EjXiO7r0aCPjxoFlv";
-
-const cardContainer = document.getElementById('cardContainer');
-const spinButton = document.getElementById('spinButton');
-const result = document.getElementById('result');
-const collectionList = document.getElementById('collectionList');
-const spinSound = document.getElementById('spinSound');
-const revealSound = document.getElementById('revealSound');
-
-let collection = JSON.parse(localStorage.getItem('collection')) || [];
-updateCollectionUI();
-
-function getColorClass(prize) {
-    prize = prize.toLowerCase();
-    if (prize.includes("hof") || prize.includes("premium") || prize.includes("gold")) return "gold";
-    if (prize.includes("standard") || prize.includes("silver") || prize.includes("cold")) return "blue";
-    if (prize.includes("hot")) return "red";
-    return "grey";
-}
-
-spinButton.addEventListener('click', () => {
-    spinButton.disabled = true;
-    result.textContent = '';
-    cardContainer.innerHTML = '';
-    spinSound.play();
-
-    const shuffled = [...prizes].sort(() => 0.5 - Math.random());
-    const displayPrizes = shuffled.slice(0, 5);
-    const cards = [];
-
-    displayPrizes.forEach(prize => {
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.textContent = "🎴";
-        cardContainer.appendChild(card);
-        cards.push(card);
-    });
-
-    let current = 0;
-    let cycles = 0;
-    const maxCycles = 33; // ~10s
-    const highlightInterval = setInterval(() => {
-        cards.forEach(card => card.classList.remove('highlight'));
-        cards[current].classList.add('highlight');
-        current = (current + 1) % cards.length;
-        cycles++;
-        if (cycles >= maxCycles) {
-            clearInterval(highlightInterval);
-            spinSound.pause();
-            spinSound.currentTime = 0;
-            revealSound.play();
-
-            const finalIndex = (current - 1 + cards.length) % cards.length;
-            const prize = displayPrizes[finalIndex];
-            const colorClass = getColorClass(prize);
-
-            cards.forEach((card, idx) => {
-                if(idx === finalIndex){
-                    card.textContent = prize;
-                    card.classList.add('reveal', colorClass);
-                    result.textContent = `You won: ${prize}`;
-                    collection.push(prize);
-                    localStorage.setItem('collection', JSON.stringify(collection));
-                    updateCollectionUI();
-                    sendWebhook(prize);
-                } else {
-                    card.style.opacity = '0.3';
-                }
-                card.classList.remove('highlight');
-            });
-            spinButton.disabled = false;
-        }
-    }, 300);
-});
-
-function updateCollectionUI() {
-    collectionList.innerHTML = '';
-    collection.forEach((item, index) => {
-        const li = document.createElement('li');
-        li.textContent = item;
-        const useButton = document.createElement('button');
-        useButton.textContent = 'Use';
-        useButton.style.marginLeft = '10px';
-        useButton.addEventListener('click', () => {
-            collection.splice(index, 1);
-            localStorage.setItem('collection', JSON.stringify(collection));
-            updateCollectionUI();
+        prizes.forEach(prize => {
+            const div = document.createElement('div');
+            div.className = 'card';
+            div.textContent = prize;
+            cardsContainer.appendChild(div);
         });
-        li.appendChild(useButton);
-        collectionList.appendChild(li);
-    });
-}
 
-function sendWebhook(prize) {
-    fetch(webhookURL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            username: "EBFL Spin Logger",
-            embeds: [{
-                title: "EBFL Result Logs",
-                description: `A player shuffe cards and won: **${prize}**`,
-                color: 15158332
-            }]
-        })
-    });
-}
-</script>
+        loginButton.addEventListener('click', () => {
+            window.location.href = backendUrl + '/auth/discord';
+        });
+
+        async function checkAuth() {
+            const res = await fetch(backendUrl + '/auth/check', { credentials: 'include' });
+            if (res.ok) {
+                const data = await res.json();
+                usernameDiv.textContent = `Logged in as ${data.username}`;
+                loginButton.style.display = 'none';
+                spinButton.style.display = 'inline-block';
+            }
+        }
+
+        spinButton.addEventListener('click', async () => {
+            spinButton.disabled = true;
+            spinSound.play();
+            resultDiv.textContent = '';
+            const cards = document.querySelectorAll('.card');
+            let activeIndex = 0;
+            const interval = setInterval(() => {
+                cards.forEach(card => card.classList.remove('active'));
+                cards[activeIndex % cards.length].classList.add('active');
+                activeIndex++;
+            }, 100);
+
+            setTimeout(async () => {
+                clearInterval(interval);
+                const response = await fetch(backendUrl + '/spin', { credentials: 'include' });
+                const data = await response.json();
+                resultDiv.textContent = `You won: ${data.prize}`;
+                cards.forEach(card => {
+                    card.classList.remove('active');
+                    if (card.textContent === data.prize) card.classList.add('active');
+                });
+                spinButton.disabled = false;
+            }, 10000);
+        });
+
+        checkAuth();
+    </script>
 </body>
 </html>
