@@ -3,14 +3,18 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>SANA NAMAN PUMALDO</title>
+<title>EBFL MY PLAYER UPGRADES</title>
 <style>
     body { font-family: sans-serif; text-align: center; background: #0d0d0d; color: #fff; }
     h1 { margin-top: 20px; color: #e63946; }
     #cardContainer { display: flex; justify-content: center; align-items: center; height: 200px; overflow: hidden; margin: 20px auto; width: 100%; max-width: 400px; }
-    .card { width: 70px; height: 100px; background: #333; border: 3px solid #555; border-radius: 8px; margin: 0 5px; display: flex; justify-content: center; align-items: center; font-size: 11px; transition: transform 0.2s, border 0.2s; }
+    .card { width: 70px; height: 100px; background: #333; border: 3px solid #555; border-radius: 8px; margin: 0 5px; display: flex; justify-content: center; align-items: center; font-size: 11px; transition: transform 0.2s, border 0.2s, background 0.2s; }
     .highlight { border: 3px solid #e63946; transform: scale(1.1); }
-    .reveal { background: #e63946; color: #fff; transform: scale(1.2); }
+    .reveal { transform: scale(1.2); color: #fff; }
+    .gold { border-color: gold !important; background: #c59d5f; }
+    .blue { border-color: #3498db !important; background: #2980b9; }
+    .red { border-color: #e74c3c !important; background: #c0392b; }
+    .grey { border-color: #bdc3c7 !important; background: #7f8c8d; }
     button { padding: 10px 20px; font-size: 16px; cursor: pointer; background: #e63946; color: #fff; border: none; border-radius: 5px; margin-top: 10px; }
     button:disabled { background: #555; cursor: not-allowed; }
     #collection { margin-top: 20px; }
@@ -19,14 +23,21 @@
 </style>
 </head>
 <body>
-    <h1>SANA PUMALDO TALAGA</h1>
+    <h1>EBFL Spin & Collect</h1>
     <div id="cardContainer"></div>
     <button id="spinButton">SPIN</button>
     <div id="result"></div>
     <div id="collection">
-        <h2>NAPANALUNAN</h2>
+        <h2>Your Reward</h2>
         <ul id="collectionList"></ul>
     </div>
+
+<audio id="spinSound" loop>
+<source src="data:audio/mp3;base64,//uQx...your_spin_sound_base64..." type="audio/mp3">
+</audio>
+<audio id="revealSound">
+<source src="data:audio/mp3;base64,//uQx...your_reveal_sound_base64..." type="audio/mp3">
+</audio>
 
 <script>
 const prizes = [
@@ -38,25 +49,33 @@ const prizes = [
     "Cold Zone Removal", "Dunk Package", "Layup Package"
 ];
 
+const webhookURL = "https://discord.com/api/webhooks/1395556475484766208/rOtQgso-Tc-b-XHY1NlI8LuaPlk0iXtmpm9cqsAvv_ZQQIxw2r-EjXiO7r0aCPjxoFlv";
+
 const cardContainer = document.getElementById('cardContainer');
 const spinButton = document.getElementById('spinButton');
 const result = document.getElementById('result');
 const collectionList = document.getElementById('collectionList');
+const spinSound = document.getElementById('spinSound');
+const revealSound = document.getElementById('revealSound');
 
 let collection = JSON.parse(localStorage.getItem('collection')) || [];
 updateCollectionUI();
+
+function getColorClass(prize) {
+    prize = prize.toLowerCase();
+    if (prize.includes("hof") || prize.includes("premium") || prize.includes("gold")) return "gold";
+    if (prize.includes("standard") || prize.includes("silver") || prize.includes("cold")) return "blue";
+    if (prize.includes("hot")) return "red";
+    return "grey";
+}
 
 spinButton.addEventListener('click', () => {
     spinButton.disabled = true;
     result.textContent = '';
     cardContainer.innerHTML = '';
+    spinSound.play();
 
-    const shuffled = [...prizes];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-
+    const shuffled = [...prizes].sort(() => 0.5 - Math.random());
     const displayPrizes = shuffled.slice(0, 5);
     const cards = [];
 
@@ -70,8 +89,7 @@ spinButton.addEventListener('click', () => {
 
     let current = 0;
     let cycles = 0;
-    const maxCycles = 33; // ~10s if interval = 300ms
-
+    const maxCycles = 33; // ~10s
     const highlightInterval = setInterval(() => {
         cards.forEach(card => card.classList.remove('highlight'));
         cards[current].classList.add('highlight');
@@ -79,23 +97,27 @@ spinButton.addEventListener('click', () => {
         cycles++;
         if (cycles >= maxCycles) {
             clearInterval(highlightInterval);
+            spinSound.pause();
+            spinSound.currentTime = 0;
+            revealSound.play();
 
-            // Reveal final prize
             const finalIndex = (current - 1 + cards.length) % cards.length;
             const prize = displayPrizes[finalIndex];
+            const colorClass = getColorClass(prize);
+
             cards.forEach((card, idx) => {
                 if(idx === finalIndex){
                     card.textContent = prize;
-                    card.classList.remove('highlight');
-                    card.classList.add('reveal');
+                    card.classList.add('reveal', colorClass);
                     result.textContent = `You won: ${prize}`;
                     collection.push(prize);
                     localStorage.setItem('collection', JSON.stringify(collection));
                     updateCollectionUI();
+                    sendWebhook(prize);
                 } else {
                     card.style.opacity = '0.3';
-                    card.classList.remove('highlight');
                 }
+                card.classList.remove('highlight');
             });
             spinButton.disabled = false;
         }
@@ -117,6 +139,21 @@ function updateCollectionUI() {
         });
         li.appendChild(useButton);
         collectionList.appendChild(li);
+    });
+}
+
+function sendWebhook(prize) {
+    fetch(webhookURL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            username: "EBFL Spin Logger",
+            embeds: [{
+                title: "🎰 EBFL Spin Result",
+                description: `A player spun the wheel and won: **${prize}**`,
+                color: 15158332
+            }]
+        })
     });
 }
 </script>
