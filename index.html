@@ -1,104 +1,94 @@
-// EBFL OAuth Backend - GM protected spin system
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EBFL GM Spin</title>
+    <style>
+        body { font-family: sans-serif; background: #0d0d0d; color: #fff; text-align: center; }
+        button { padding: 12px 20px; font-size: 18px; cursor: pointer; margin: 10px; border-radius: 8px; border: none; }
+        #login, #spinButton { background: #e63946; color: #fff; transition: background 0.3s; }
+        #login:hover, #spinButton:hover { background: #f77f00; }
+        #result { font-size: 20px; margin-top: 20px; }
+        #username { margin-top: 10px; font-weight: bold; }
+        #cards { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+        .card { background: #1a1a1a; padding: 20px; border-radius: 10px; font-size: 18px; width: 120px; transition: transform 0.2s; }
+        .card.active { background: #e63946; transform: scale(1.1); }
+    </style>
+</head>
+<body>
+    <h1>EBFL GM Spin</h1>
+    <div id="username"></div>
+    <button id="login">Login with Discord</button>
+    <div id="cards"></div>
+    <button id="spinButton" style="display:none;">SPIN</button>
+    <div id="result"></div>
 
-import express from "express";
-import session from "express-session";
-import fetch from "node-fetch";
-import cors from "cors";
-import dotenv from "dotenv";
+    <audio id="spinSound" src="https://freesound.org/data/previews/256/256113_3263906-lq.mp3"></audio>
 
-dotenv.config();
+    <script>
+        const backendUrl = "https://ebfl-oauth-backend-production.up.railway.app";
+        const prizes = [
+            'EP', 'EC', 'Discord Coin', 'Badge Card (Bronze)', 'Badge Card (Silver)',
+            'Badge Card (Gold)', 'Badge Card (HoF)', 'Upgrade Badge', 'Attributes (Basic)',
+            'Attributes (Standard)', 'Attributes (Premium)', 'Increase Attribute Limits',
+            'Hotzone (Neutral)', 'Hotzone (Cold)', 'Hotzone (Hot)', 'Cold Zone Removal',
+            'Dunk Package', 'Layup Package'
+        ];
+        const cardsContainer = document.getElementById('cards');
+        const spinButton = document.getElementById('spinButton');
+        const loginButton = document.getElementById('login');
+        const resultDiv = document.getElementById('result');
+        const usernameDiv = document.getElementById('username');
+        const spinSound = document.getElementById('spinSound');
 
-const app = express();
-const port = process.env.PORT || 8080;
+        prizes.forEach(prize => {
+            const div = document.createElement('div');
+            div.className = 'card';
+            div.textContent = prize;
+            cardsContainer.appendChild(div);
+        });
 
-const CLIENT_ID = process.env.CLIENT_ID;
-const CLIENT_SECRET = process.env.CLIENT_SECRET;
-const REDIRECT_URI = `${process.env.BASE_URL}/auth/callback`;
-const GUILD_ID = process.env.GUILD_ID;
-const GM_ROLE_ID = "1285962361689210890"; // your GM role ID
-const WEBHOOK_URL = process.env.WEBHOOK_URL;
+        loginButton.addEventListener('click', () => {
+            window.location.href = backendUrl + '/auth/discord';
+        });
 
-app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || "secret",
-    resave: false,
-    saveUninitialized: false,
-  })
-);
+        async function checkAuth() {
+            const res = await fetch(backendUrl + '/auth/check', { credentials: 'include' });
+            if (res.ok) {
+                const data = await res.json();
+                usernameDiv.textContent = `Logged in as ${data.username}`;
+                loginButton.style.display = 'none';
+                spinButton.style.display = 'inline-block';
+            }
+        }
 
-const prizes = [
-  "EP", "EC", "Discord Coin", "Badge Card (Bronze)", "Badge Card (Silver)",
-  "Badge Card (Gold)", "Badge Card (HoF)", "Upgrade Badge", "Attributes (Basic)",
-  "Attributes (Standard)", "Attributes (Premium)", "Increase Attribute Limits",
-  "Hotzone (Neutral)", "Hotzone (Cold)", "Hotzone (Hot)", "Cold Zone Removal",
-  "Dunk Package", "Layup Package"
-];
+        spinButton.addEventListener('click', async () => {
+            spinButton.disabled = true;
+            spinSound.play();
+            resultDiv.textContent = '';
+            const cards = document.querySelectorAll('.card');
+            let activeIndex = 0;
+            const interval = setInterval(() => {
+                cards.forEach(card => card.classList.remove('active'));
+                cards[activeIndex % cards.length].classList.add('active');
+                activeIndex++;
+            }, 100);
 
-app.get("/auth/discord", (req, res) => {
-  const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=identify%20guilds%20guilds.members.read`;
-  res.redirect(discordAuthUrl);
-});
+            setTimeout(async () => {
+                clearInterval(interval);
+                const response = await fetch(backendUrl + '/spin', { credentials: 'include' });
+                const data = await response.json();
+                resultDiv.textContent = `You won: ${data.prize}`;
+                cards.forEach(card => {
+                    card.classList.remove('active');
+                    if (card.textContent === data.prize) card.classList.add('active');
+                });
+                spinButton.disabled = false;
+            }, 10000);
+        });
 
-app.get("/auth/callback", async (req, res) => {
-  const code = req.query.code;
-  if (!code) return res.status(400).send("Missing code");
-
-  const tokenResponse = await fetch("https://discord.com/api/oauth2/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: CLIENT_ID,
-      client_secret: CLIENT_SECRET,
-      grant_type: "authorization_code",
-      code,
-      redirect_uri: REDIRECT_URI,
-      scope: "identify guilds guilds.members.read"
-    })
-  });
-
-  const tokenData = await tokenResponse.json();
-  const accessToken = tokenData.access_token;
-
-  const userResponse = await fetch("https://discord.com/api/users/@me", {
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
-  const user = await userResponse.json();
-
-  const memberResponse = await fetch(`https://discord.com/api/users/@me/guilds/${GUILD_ID}/member`, {
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
-  const member = await memberResponse.json();
-
-  const isGM = member.roles && member.roles.includes(GM_ROLE_ID);
-  if (!isGM) return res.status(403).send("You do not have GM role.");
-
-  req.session.user = { id: user.id, username: user.username, isGM };
-  res.redirect(process.env.FRONTEND_URL || "https://ebfl-project.vercel.app");
-});
-
-app.get("/auth/check", (req, res) => {
-  if (req.session.user && req.session.user.isGM) {
-    res.json({ username: req.session.user.username, isGM: true });
-  } else {
-    res.status(401).send("Unauthorized");
-  }
-});
-
-app.get("/spin", async (req, res) => {
-  if (!req.session.user || !req.session.user.isGM) return res.status(401).send("Unauthorized");
-  const prize = prizes[Math.floor(Math.random() * prizes.length)];
-
-  await fetch(WEBHOOK_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      content: `🎯 **${req.session.user.username}** spun and won **${prize}**!`
-    })
-  });
-
-  res.json({ prize });
-});
-
-app.listen(port, () => console.log(`EBFL OAuth Backend running on port ${port}`));
+        checkAuth();
+    </script>
+</body>
+</html>
