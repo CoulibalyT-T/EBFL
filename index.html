@@ -126,7 +126,10 @@
                     // Highlight the winning card
                     cards.forEach(card => {
                         card.classList.remove('active');
-                        if (card.textContent === data.prize) {
+                        if (
+                            data.prize.startsWith(card.textContent) || 
+                            data.prize === card.textContent
+                        ) {
                             card.classList.add('active');
                         }
                     });
